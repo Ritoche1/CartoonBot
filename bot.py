@@ -31,6 +31,7 @@ def update_max_cartoon():
 @bot.event
 async def on_ready():
     print('Logged in as', bot.user.name, bot.user.id)
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=".help"))
     send_random_cartoon.start()
 
 @bot.command(brief="get a random cartoon")
