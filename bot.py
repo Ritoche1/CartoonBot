@@ -4,6 +4,7 @@
 from asyncio import tasks
 import discord
 from discord.ext import commands, tasks
+from discord.utils import get
 import requests
 import json
 import random as rd
@@ -24,12 +25,13 @@ def update_max_cartoon():
     MAX_CARTOON = response.json()['num']
     data["MAX_CARTOON"] = MAX_CARTOON
     with (open('config.json', 'w')) as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=4)
 
 
 @bot.event
 async def on_ready():
     print('Logged in as', bot.user.name, bot.user.id)
+    send_random_cartoon.start()
 
 @bot.command(brief="get a random cartoon")
 async def random(ctx):
@@ -55,11 +57,15 @@ async def comic(ctx, number):
 @tasks.loop(minutes=1)
 async def send_random_cartoon():
     update_max_cartoon()
+    data = json.load(open('config.json'))
+    channel_id = int(data['CHANNEL_ID'])
     if (datetime.now().hour == data['HOUR'] and datetime.now().minute == data['MINUTE']):
+        print("datetime is now")
         i = rd.randint(0, MAX_CARTOON)
         url = f"https://xkcd.com/{i}/info.0.json"
         response = requests.get(url)
         data = response.json()
-        await bot.get_channel(data['CHANNEL_ID']).send(data['img'])
+        channel = bot.get_channel(channel_id)
+        await channel.send(data['img'])
 
 bot.run(data['TOKEN'])
