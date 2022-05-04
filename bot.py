@@ -65,11 +65,7 @@ async def send_random_cartoon():
     data = json.load(open('config.json'))
     channel_id = int(data['CHANNEL_ID'])
     if (datetime.now().hour == data['HOUR'] and datetime.now().minute == data['MINUTE']):
-<<<<<<< HEAD
         print("datetime is now")
-=======
-        print("Sending random cartoon from date")
->>>>>>> 44456c73a315e70dac192c81bc44e2f6300bdaea
         i = rd.randint(0, MAX_CARTOON)
         url = f"https://xkcd.com/{i}/info.0.json"
         response = requests.get(url)
