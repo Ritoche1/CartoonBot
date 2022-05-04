@@ -40,9 +40,10 @@ async def random(ctx):
     response = requests.get(url)
     data = response.json()
     await ctx.send(data['img'])
+    print(f"{datetime.now()} - {ctx.author} - {ctx.message.content}")
 
 @bot.command(brief="get an image comic from number")
-async def comic(ctx, number):
+async def comic(ctx, number=None):
     try : 
         if  int(number) > MAX_CARTOON:
             await ctx.send("That number is too high")
@@ -52,7 +53,11 @@ async def comic(ctx, number):
             data = response.json()
             await ctx.send(data['img'])
     except:
-        await ctx.send("please enter a number")
+        url = f"https://xkcd.com/info.0.json"
+        response = requests.get(url)
+        data = response.json()
+        await ctx.send(data['img'])
+    print(f"{datetime.now()} - {ctx.author} - {ctx.message.content}")
 
 @tasks.loop(minutes=1)
 async def send_random_cartoon():
@@ -60,7 +65,11 @@ async def send_random_cartoon():
     data = json.load(open('config.json'))
     channel_id = int(data['CHANNEL_ID'])
     if (datetime.now().hour == data['HOUR'] and datetime.now().minute == data['MINUTE']):
+<<<<<<< HEAD
         print("datetime is now")
+=======
+        print("Sending random cartoon from date")
+>>>>>>> 44456c73a315e70dac192c81bc44e2f6300bdaea
         i = rd.randint(0, MAX_CARTOON)
         url = f"https://xkcd.com/{i}/info.0.json"
         response = requests.get(url)
