@@ -5,73 +5,93 @@ from asyncio import tasks
 import discord
 from discord.ext import commands, tasks
 from discord.utils import get
-import requests
+from discord_slash import SlashCommand, SlashContext
+from discord_slash.utils.manage_commands import create_option, create_choice
 import json
-import random as rd
 from datetime import datetime
+
+import tools as tools
+from tools import addServer, setTime, addCartoon, checkChannel, checkTime, isInToSend, getServerFollowers
+from xkcd import getRandomCartoon
+from xkcd import update_max_cartoon
+
+MAX_CARTOON = 0
 
 
 intents = discord.Intents.default()
 intents.members = True
-bot = commands.Bot(command_prefix='.', intents=intents)
+bot = commands.Bot(command_prefix='.', intents=intents, help_command=None)
+slash = SlashCommand(bot, sync_commands=True)
 
 data = json.load(open('config.json'))
-MAX_CARTOON = data['MAX_CARTOON']
-
-
-def update_max_cartoon():
-    url = f"https://xkcd.com/info.0.json"
-    response = requests.get(url)
-    MAX_CARTOON = response.json()['num']
-    data["MAX_CARTOON"] = MAX_CARTOON
-    with (open('config.json', 'w')) as f:
-        json.dump(data, f, indent=4)
 
 
 @bot.event
 async def on_ready():
     print('Logged in as', bot.user.name, bot.user.id)
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=".help"))
-    send_random_cartoon.start()
+    # await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="."))
+    sendCartoon.start()
 
-@bot.command(brief="get a random cartoon")
-async def random(ctx):
-    i = rd.randint(0, 2613)
-    url = f"https://xkcd.com/{i}/info.0.json"
-    response = requests.get(url)
-    data = response.json()
-    await ctx.send(data['img'])
-    print(f"{datetime.now()} - {ctx.author} - {ctx.message.content}")
 
-@bot.command(brief="get an image comic from number")
-async def comic(ctx, number=None):
-    try : 
-        if  int(number) > MAX_CARTOON:
-            await ctx.send("That number is too high")
-        else:
-            url = f"https://xkcd.com/{number}/info.0.json"
-            response = requests.get(url)
-            data = response.json()
-            await ctx.send(data['img'])
-    except:
-        url = f"https://xkcd.com/info.0.json"
-        response = requests.get(url)
-        data = response.json()
-        await ctx.send(data['img'])
-    print(f"{datetime.now()} - {ctx.author} - {ctx.message.content}")
+@slash.slash(name="setChannel", description="set the channel to send the cartoons to")
+async def setChannel(ctx: SlashContext, channel: discord.TextChannel, hour: int, minute: int):
+    if (ctx.author.id != ctx.guild.owner.id):
+        await ctx.send("You are not the owner of this server. Ask the owner to use this command.")
+        return
+    if addServer(ctx.guild.id) == 0:
+        print(f"Create Server: {ctx.guild.id}, {ctx.guild.name}")
+    tools.setChannel(ctx.guild.id, channel.id)
+    tools.setTime(ctx.guild.id, hour, minute)
+    await ctx.send("Channel set to <#" + str(channel.id) + "> successfully.")
+    
+
+@slash.slash(name="addCartoon", description="add a new cartoon to the list", options=[create_option(
+    name="cartoon",
+    description="The name of the cartoon available",
+    required=True,
+    option_type=3,
+    choices=[
+        create_choice(name="xkcd", value="xkcd"),
+        create_choice(name="Vdm", value="vdm"),
+    ]
+)])
+async def addCartoon(ctx: SlashContext, cartoon: str):
+    if (ctx.author.id != ctx.guild.owner.id):
+        await ctx.send("You are not the owner of this server. Ask the owner to use this command.")
+        return
+    if addServer(ctx.guild.id) == 0:
+        print(f"Create Server: {ctx.guild.id}, {ctx.guild.name}")
+    if checkChannel(ctx.guild.id) == False:
+        await ctx.send("Please set a channel to send the news first")
+        return
+    if (tools.isInServer(ctx.guild.id, cartoon) == False):
+        tools.addCartoon(ctx.guild.id, cartoon)
+        await ctx.send("Cartoon added successfully.")
+    else:
+        await ctx.send("Cartoon already in it")
+
+
+@slash.slash(name="listCartoon", description="List all the cartoons")
+async def listFollow(ctx: SlashContext):
+    follow = getServerFollowers(ctx.guild.id)
+    if len(follow) == 0:
+        await ctx.send("No cartoon are being followed")
+        return
+    embed = discord.Embed(title="Cartoons being followed", color=0x384dc2)
+    
+    for i in range(len(follow)):
+        embed.add_field(name=str(i+1), value=follow[i], inline=False)
+    await ctx.send(embed=embed)
 
 @tasks.loop(minutes=1)
-async def send_random_cartoon():
-    update_max_cartoon()
-    data = json.load(open('config.json'))
-    channel_id = int(data['CHANNEL_ID'])
-    if (datetime.now().hour == data['HOUR'] and datetime.now().minute == data['MINUTE']):
-        print("datetime is now")
-        i = rd.randint(0, MAX_CARTOON)
-        url = f"https://xkcd.com/{i}/info.0.json"
-        response = requests.get(url)
-        data = response.json()
-        channel = bot.get_channel(channel_id)
-        await channel.send(data['img'])
+async def sendCartoon():
+    data = json.load(open('data.json'))
+    for server in data:
+        srv = server[list(server.keys())[0]]
+        if (datetime.now().hour == srv["HOUR"] and datetime.now().minute == srv["MINUTE"]):
+            embeds = tools.getEmbedsCartoon(srv["cartoonIds"])
+            for embed in embeds:
+                await bot.get_channel(srv['ChannelToSend']).send(embed=embed)
+
 
 bot.run(data['TOKEN'])
